@@ -20,4 +20,5 @@ Optional (Needed for simulation)
 Some code 
 ```
 
-2. Having two versions of gazebo might messed up the ardupilot-gazebo installation process. Make sure to fully uninstall the unused version of gazebo.
+2. Please be advised to use only one version of gazebo. In case that two versions have been previously installed, make sure to uninstall one of the version completely as it might causing misplacement of installation files.
+3. Update CMake to the latest version.
