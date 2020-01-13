@@ -1,0 +1,5 @@
+string cmd
+string data1
+string data2
+---
+bool success
