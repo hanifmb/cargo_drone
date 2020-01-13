@@ -1,0 +1,5 @@
+<launch>
+	<include file="$(find drone)/launch/apm.launch"></include>
+	<include file="$(find drone)/launch/camera.launch"></include>
+	<include file="$(find drone)/launch/aruco_tracker.launch"></include>
+</launch>
