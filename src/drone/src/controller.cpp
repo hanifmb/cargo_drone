@@ -28,12 +28,6 @@ void spinThread(){
 bool decoder(drone::cmd::Request  &req,
     drone::cmd::Response &res){
     
-    switch (str2int(req.cmd)){
-    case str2int("Value1"):
-        break;
-    case str2int("Value2"):
-        break;
-}
     res.success = true;
     return true;
 }

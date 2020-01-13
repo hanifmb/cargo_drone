@@ -4,7 +4,7 @@ project(drone)
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 find_package(OpenCV REQUIRED)
-find_package(gazebo REQUIRED)
+#find_package(gazebo REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
@@ -35,23 +35,13 @@ generate_messages(
   std_msgs
 )
 
-
 catkin_package()
 
 include_directories(include ${catkin_INCLUDE_DIRS})
-include_directories(${GAZEBO_INCLUDE_DIRS})
+#include_directories(${GAZEBO_INCLUDE_DIRS})
 
-link_directories(${GAZEBO_LIBRARY_DIRS})
-list(APPEND CMAKE_CXX_FLAGS "${GAZEBO_CXX_FLAGS}")
-
-#add_executable(listener src/listener.cpp)
-#target_link_libraries(listener ${catkin_LIBRARIES})
-#target_link_libraries(listener ${OpenCV_LIBS})
-#target_link_libraries(listener ${GAZEBO_LIBRARIES} pthread)
+#link_directories(${GAZEBO_LIBRARY_DIRS})
+#list(APPEND CMAKE_CXX_FLAGS "${GAZEBO_CXX_FLAGS}")
 
 add_executable(controller src/controller.cpp)
 target_link_libraries(controller ${catkin_LIBRARIES})
-
-#add_executable(improc src/improc.cpp)
-#target_link_libraries(improc ${OpenCV_LIBS})
-
