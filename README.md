@@ -14,7 +14,8 @@ Optional (Needed for simulation)
 
 ## Running the simulation
 ```bash 
-rosrun gazebo_ros --verbose worlds/iris_arducopter_runway.world
+roscore
+rosrun gazebo_ros gazebo --verbose worlds/iris_arducopter_runway.world
 sim_vehicle.py -f gazebo-iris --console
 ```
 
