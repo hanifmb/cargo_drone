@@ -17,6 +17,7 @@ Optional (Needed for simulation)
 roscore
 rosrun gazebo_ros gazebo --verbose worlds/iris_arducopter_runway.world
 sim_vehicle.py -f gazebo-iris --console
+roslaunch drone mission1_sim.launch
 ```
 
 ## Notes on Gazebo simulation
