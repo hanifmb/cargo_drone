@@ -33,4 +33,4 @@ roslaunch drone mission1.launch
 1. Confirm that model and world paths are exported to make sure Gazebo is able to find the corresponding files.
 2. CMake needs to be updated to the latest version to prevent error when compiling ardupilot gazebo plugin.
 3. Please be advised to use only one version of gazebo. In case that two versions have been previously installed, make sure to uninstall one of the version completely as it might causing misplacement of installation files.
-4. gazebo-ros camera plugin is needed to to be compiled and added to gymbal's URDF file to publish simulation camera to rostopic.
+4. gazebo-ros camera plugin is needed to to be compiled and added to gimbal's URDF file to publish simulation camera to rostopic.
