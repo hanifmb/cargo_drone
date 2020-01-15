@@ -11,8 +11,8 @@
 
 
     <node pkg="aruco_ros" type="double" name="aruco_simple">    
-        <remap from="/camera_info" to="/camera/camera_info" />
-        <remap from="/image" to="/camera/image_raw" />
+        <remap from="/camera_info" to="/rrbot/camera1/camera_info" />
+        <remap from="/image" to="/rrbot/camera1/image_raw" />
         <param name="image_is_rectified" value="True"/>
         <param name="marker_size" value="$(arg markerSize)"/>
         <param name="marker_id1" value="$(arg marker1Id)"/>

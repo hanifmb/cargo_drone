@@ -1,0 +1,6 @@
+<launch>
+	<include file="$(find drone)/launch/apm.launch">
+        <arg name="fcu_url" value="udp://:14550@" />
+    </include>
+	<include file="$(find drone)/launch/aruco_tracker_sim.launch"></include>
+</launch>
