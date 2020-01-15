@@ -12,6 +12,14 @@ Optional (Needed for simulation)
 2. Ardupilot SITL (Software in the loop)
 3. Mission planner - running on ubuntu 16.04 through wine
 
+## Running the simulation
+```bash 
+roscore
+rosrun gazebo_ros gazebo --verbose worlds/iris_arducopter_runway.world
+sim_vehicle.py -f gazebo-iris --console
+roslaunch drone mission1_sim.launch
+```
+
 ## Notes on Gazebo simulation
 1. Make sure the model and world paths are exported to make sure Gazebo able to find the corresponding files.
 
