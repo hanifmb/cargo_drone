@@ -25,11 +25,12 @@ void spinThread(){
     ros::spin();
 }
 
-bool decoder(drone::cmd::Request  &req,
-    drone::cmd::Response &res){
-    
-    res.success = true;
-    return true;
+float proporsional(float Kp, float setpoint, float state){
+    return Kp*(state-setpoint);
+}
+
+void centering_cb(){
+
 }
 
 void move_front(){
@@ -47,6 +48,8 @@ void move_right(){
 void move_left(){
     
 }
+
+
 
 void mission1_start(){
  //Set mode to GUIDED
@@ -75,6 +78,8 @@ void mission1_start(){
         ros::Duration(5).sleep();
     }
   
+    ros::Duration(5).sleep();
+
   //Take off
   mavros_msgs::CommandTOL takeoff_param;
   takeoff_param.request.altitude = 10.0;
@@ -83,6 +88,8 @@ void mission1_start(){
       ROS_INFO("Taking off");
   }
   
+
+  /*
   //Switch to AUTO
   set_mode.request.custom_mode = "AUTO";
   while(current_state.mode != "AUTO"){
@@ -90,7 +97,17 @@ void mission1_start(){
           ROS_INFO("AUTO enabled");
       }
       ros::Duration(1).sleep();
-  }  
+  }  */
+}
+
+bool decoder(drone::cmd::Request  &req,
+    drone::cmd::Response &res){
+    if (req.cmd == "MISSION1_START"){
+        mission1_start();
+    }
+    
+    res.success = true;
+    return true;
 }
 
 int main(int argc, char **argv)
