@@ -1,5 +1,5 @@
-x_control/kp: 0.25
-y_control/kp: 0.25
+x_control/kp: 0.05
+y_control/kp: 0.05
 z_control/kp: 0.25
 
 ar_detect/timeout: 5.0

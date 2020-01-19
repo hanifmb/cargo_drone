@@ -40,7 +40,7 @@ class DroneController{
     DroneController(ros::NodeHandle* nh)
     {
         //Subscriber
-        state_sub = nh->subscribe<mavros_msgs::State>("mavros/state", 10, &DroneController::state_cb, this);
+        state_sub = nh->subscribe<mavros_msgs::State>("/mavros/state", 10, &DroneController::state_cb, this);
         relative_altitude_sub = nh->subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt", 10, &DroneController::relative_altitude_cb, this);
         pose1_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose", 10, &DroneController::pose1_cb, this);
 
@@ -49,14 +49,14 @@ class DroneController{
         //Service
         service = nh->advertiseService("/controller/drone_cmd", &DroneController::decoder_cb, this);
 
-        arming_client = nh->serviceClient<mavros_msgs::CommandBool>("mavros/cmd/arming");
-        set_mode_client = nh->serviceClient<mavros_msgs::SetMode>("mavros/set_mode");
+        arming_client = nh->serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
+        set_mode_client = nh->serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");
         takeoff_client = nh->serviceClient<mavros_msgs::CommandTOL>("/mavros/cmd/takeoff");
 
         go_down = false;
 
         //param
-        nh->getParam("cargo_drone/x_control/kp", z_kp);
+        nh->getParam("cargo_drone/x_control/kp", x_kp);
         nh->getParam("cargo_drone/y_control/kp", y_kp);
         nh->getParam("cargo_drone/z_control/kp", z_kp);
         nh->getParam("cargo_drone/ar_detect/timeout", ar_timeout);
@@ -83,7 +83,14 @@ class DroneController{
 
             double vel_x = proporsional(x_kp, 0, cur_pose_1.position.x);
             double vel_y = proporsional(y_kp, 0, cur_pose_1.position.y);
-            double vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data);       
+            double vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data);     
+
+            if(vel_x > 1){vel_x = 1;}
+            if(vel_x < -1){vel_x = -1;}
+            if(vel_y > 1){vel_x = 1;}
+            if(vel_y > 1){vel_x = 1;}
+            if(vel_z > 1){vel_x = 1;}
+            if(vel_z > 1){vel_x = 1;}
 
             vel_setpoint.twist.linear.x = vel_x;
             vel_setpoint.twist.linear.y = -vel_y;
@@ -189,7 +196,6 @@ class DroneController{
     void relative_altitude_cb(const std_msgs::Float64::ConstPtr& msg){
         cur_rel_altitude = *msg;
         //std::cout << "altitude" << cur_rel_altitude.data << std::endl; 
-
     }
 
     void pose1_cb(const geometry_msgs::Pose::ConstPtr& msg){
