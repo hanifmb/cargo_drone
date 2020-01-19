@@ -4,9 +4,4 @@
     </include>
 	<include file="$(find cargo_drone)/launch/aruco_tracker_sim.launch"></include>
     <node name="controller" pkg="cargo_drone" type="controller" output="screen"/>
-    
-    <group ns="cargo_drone">
-        <rosparam file="$(find cargo_drone)/config/drone_param.yaml" />
-    </group>
-
 </launch>

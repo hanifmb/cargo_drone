@@ -8,6 +8,8 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/TwistStamped.h>
 #include "cargo_drone/cmd.h"
+#include <dynamic_reconfigure/server.h>
+#include <cargo_drone/drone_paramConfig.h>
 
 #include <boost/thread.hpp>
 #include <sstream>
@@ -35,7 +37,11 @@ class DroneController{
     double x_kp,  y_kp, z_kp;
     double ar_timeout, diameter_thresh, lower_target_alt, 
             upper_target_alt, takeoff_alt;
-    
+              //Setup dynamic reconfigure
+
+    dynamic_reconfigure::Server<cargo_drone::drone_paramConfig> server;
+    dynamic_reconfigure::Server<cargo_drone::drone_paramConfig>::CallbackType f;
+
     public:
     DroneController(ros::NodeHandle* nh)
     {
@@ -55,16 +61,21 @@ class DroneController{
 
         go_down = false;
 
-        //param
-        nh->getParam("cargo_drone/x_control/kp", x_kp);
-        nh->getParam("cargo_drone/y_control/kp", y_kp);
-        nh->getParam("cargo_drone/z_control/kp", z_kp);
-        nh->getParam("cargo_drone/ar_detect/timeout", ar_timeout);
-        nh->getParam("cargo_drone/ar_detect/go_down/diameter_thresh", diameter_thresh);
-        nh->getParam("cargo_drone/go_down/lower_alt", lower_target_alt);
-        nh->getParam("cargo_drone/go_up/upper_alt", upper_target_alt);
-        nh->getParam("cargo_drone/take_off/alt", takeoff_alt);
+        f = boost::bind(&DroneController::dynamic_reconfigure_cb, this, _1, _2);
+        server.setCallback(f);
 
+
+    }
+
+    void dynamic_reconfigure_cb(cargo_drone::drone_paramConfig &config, uint32_t level) {
+        x_kp = config.x_kp;
+        y_kp = config.y_kp;
+        z_kp = config.z_kp;
+        ar_timeout = config.ar_timeout;
+        diameter_thresh = config.diameter_thresh;
+        lower_target_alt = config.lower_target_alt;
+        upper_target_alt = config.upper_target_alt;
+        takeoff_alt = config.takeoff_alt;
     }
 
     double proporsional(double Kp, double setpoint, double state){
@@ -207,14 +218,16 @@ class DroneController{
 };
 
 
+
+
 int main(int argc, char **argv)
 {
 
   // ROS node initialization
   ros::init(argc, argv, "drone_control");
+  
 
   //boost::thread spin_thread(&spinThread);
-
   ros::NodeHandle nh;
   DroneController controller_node(&nh);
   
