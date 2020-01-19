@@ -3,6 +3,5 @@
         <arg name="fcu_url" value="udp://:14550@" />
     </include>
 	<include file="$(find drone)/launch/aruco_tracker_sim.launch"></include>
-
-    <node name="controller" pkg="drone" type="controller" />
+    <node name="controller" pkg="drone" type="controller" output="screen"/>
 </launch>
