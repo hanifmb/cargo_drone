@@ -31,6 +31,10 @@ class DroneController{
     bool go_down;
     
     boost::thread mission_thread;
+
+    double x_kp,  y_kp, z_kp;
+    double ar_timeout, diameter_thresh, lower_target_alt, 
+            upper_target_alt, takeoff_alt;
     
     public:
     DroneController(ros::NodeHandle* nh)
@@ -51,6 +55,16 @@ class DroneController{
 
         go_down = false;
 
+        //param
+        nh->getParam("cargo_drone/x_control/kp", z_kp);
+        nh->getParam("cargo_drone/y_control/kp", y_kp);
+        nh->getParam("cargo_drone/z_control/kp", z_kp);
+        nh->getParam("cargo_drone/ar_detect/timeout", ar_timeout);
+        nh->getParam("cargo_drone/ar_detect/go_down/diameter_thresh", diameter_thresh);
+        nh->getParam("cargo_drone/go_down/lower_alt", lower_target_alt);
+        nh->getParam("cargo_drone/go_up/upper_alt", upper_target_alt);
+        nh->getParam("cargo_drone/take_off/alt", takeoff_alt);
+
     }
 
     double proporsional(double Kp, double setpoint, double state){
@@ -60,22 +74,25 @@ class DroneController{
     float centering_start(){
 
         double current_time = ros::Time::now().toSec();
-        double duration = 5;
+        //double duration = 5;
         
         ros::Rate send_vel_rate(30);
         
-        while (current_time - last_pose1_time < duration){
+        while (current_time - last_pose1_time < ar_timeout){
             ROS_ERROR("ini di print selama 5 detik, last pose: %f", current_time - last_pose1_time);
 
-            double vel_x = proporsional(0.25, 0, cur_pose_1.position.x);
-            double vel_y = proporsional(0.25, 0, cur_pose_1.position.y);
-            double vel_z = proporsional(0.25, 2, cur_rel_altitude.data);       
+            double vel_x = proporsional(x_kp, 0, cur_pose_1.position.x);
+            double vel_y = proporsional(y_kp, 0, cur_pose_1.position.y);
+            double vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data);       
 
             vel_setpoint.twist.linear.x = vel_x;
             vel_setpoint.twist.linear.y = -vel_y;
 
-            if(vel_setpoint.twist.linear.x < 0.2 && 
-            vel_setpoint.twist.linear.y < 0.2 && !go_down)
+            if(vel_setpoint.twist.linear.x < diameter_thresh &&
+            vel_setpoint.twist.linear.x > -diameter_thresh && 
+            vel_setpoint.twist.linear.y < diameter_thresh && 
+            vel_setpoint.twist.linear.y > -diameter_thresh &&
+            !go_down)
             {
                 go_down = true;
             }
@@ -127,7 +144,7 @@ class DroneController{
 
         //Take off
         mavros_msgs::CommandTOL takeoff_param;
-        takeoff_param.request.altitude = 10.0;
+        takeoff_param.request.altitude = takeoff_alt;
 
         if(takeoff_client.call(takeoff_param)){
             ROS_INFO("Taking off");

@@ -1,0 +1,11 @@
+x_control/kp: 0.25
+y_control/kp: 0.25
+z_control/kp: 0.25
+
+ar_detect/timeout: 5.0
+ar_detect/go_down/diameter_thresh: 0.2
+
+go_down/lower_alt: 2.0
+go_up/upper_alt: 8.0
+
+take_off/alt: 8

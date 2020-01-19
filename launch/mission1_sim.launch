@@ -1,7 +1,12 @@
 <launch>
-	<include file="$(find drone)/launch/apm.launch">
+	<include file="$(find cargo_drone)/launch/apm.launch">
         <arg name="fcu_url" value="udp://:14550@" />
     </include>
-	<include file="$(find drone)/launch/aruco_tracker_sim.launch"></include>
-    <node name="controller" pkg="drone" type="controller" output="screen"/>
+	<include file="$(find cargo_drone)/launch/aruco_tracker_sim.launch"></include>
+    <node name="controller" pkg="cargo_drone" type="controller" output="screen"/>
+    
+    <group ns="cargo_drone">
+        <rosparam file="$(find cargo_drone)/config/drone_param.yaml" />
+    </group>
+
 </launch>
