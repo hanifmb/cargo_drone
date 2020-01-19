@@ -7,7 +7,7 @@
 #include <std_msgs/Float64.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/TwistStamped.h>
-#include "drone/cmd.h"
+#include "cargo_drone/cmd.h"
 
 #include <boost/thread.hpp>
 #include <sstream>
@@ -152,8 +152,8 @@ class DroneController{
     }
 
     // Callback functions
-    bool decoder_cb(drone::cmd::Request  &req,
-        drone::cmd::Response &res){
+    bool decoder_cb(cargo_drone::cmd::Request  &req,
+        cargo_drone::cmd::Response &res){
         if (req.cmd == "MISSION1_START"){
             mission_thread = boost::thread(&DroneController::mission1_start, this);
         }
