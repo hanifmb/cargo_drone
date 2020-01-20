@@ -28,6 +28,7 @@ class DroneController{
     geometry_msgs::Pose cur_pose_1;
     geometry_msgs::TwistStamped vel_setpoint;
     mavros_msgs::State current_state;
+    mavros_msgs::SetMode set_mode;
 
     double last_pose1_time;
     bool go_down;
@@ -36,7 +37,8 @@ class DroneController{
 
     double x_kp,  y_kp, z_kp;
     double ar_timeout, diameter_thresh, lower_target_alt, 
-            upper_target_alt, takeoff_alt;
+            upper_target_alt, takeoff_alt, pid_limiter_xy,
+            pid_limiter_z;
               //Setup dynamic reconfigure
 
     dynamic_reconfigure::Server<cargo_drone::drone_paramConfig> server;
@@ -48,7 +50,7 @@ class DroneController{
         //Subscriber
         state_sub = nh->subscribe<mavros_msgs::State>("/mavros/state", 10, &DroneController::state_cb, this);
         relative_altitude_sub = nh->subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt", 10, &DroneController::relative_altitude_cb, this);
-        pose1_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose", 10, &DroneController::pose1_cb, this);
+        pose1_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose1", 10, &DroneController::pose1_cb, this);
 
         vel_setpoint_pub = nh->advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 1000);
 
@@ -76,6 +78,29 @@ class DroneController{
         lower_target_alt = config.lower_target_alt;
         upper_target_alt = config.upper_target_alt;
         takeoff_alt = config.takeoff_alt;
+        pid_limiter_xy = config.pid_limiter_xy;
+        pid_limiter_z = config.pid_limiter_z;
+    }
+
+    void move_right(){
+        vel_setpoint.twist.linear.x = +1;
+        vel_setpoint.twist.linear.y = 0;
+        vel_setpoint_pub.publish(vel_setpoint);
+    }
+    void move_left(){
+        vel_setpoint.twist.linear.x = -1;
+        vel_setpoint.twist.linear.y = 0;
+        vel_setpoint_pub.publish(vel_setpoint);
+    }
+    void move_back(){
+        vel_setpoint.twist.linear.y = -1;
+        vel_setpoint.twist.linear.x = 0;
+        vel_setpoint_pub.publish(vel_setpoint);
+    }
+    void move_front(){
+        vel_setpoint.twist.linear.y = 1;
+        vel_setpoint.twist.linear.x = 0;
+        vel_setpoint_pub.publish(vel_setpoint);
     }
 
     double proporsional(double Kp, double setpoint, double state){
@@ -87,21 +112,30 @@ class DroneController{
         double current_time = ros::Time::now().toSec();
         //double duration = 5;
         
-        ros::Rate send_vel_rate(30);
-        
+        set_mode.request.custom_mode = "GUIDED";
+        while(current_state.mode != "GUIDED"){  
+            ROS_INFO("Switching to GUIDED");
+            if(set_mode_client.call(set_mode) && set_mode.response.mode_sent){
+                ROS_INFO("GUIDED enabled");
+                break;
+            }
+            ros::Duration(2).sleep();
+        }
+    
+        ros::Rate send_vel_rate(30);    
         while (current_time - last_pose1_time < ar_timeout){
-            ROS_ERROR("ini di print selama 5 detik, last pose: %f", current_time - last_pose1_time);
+            ROS_INFO("last pose: %f", current_time - last_pose1_time);
 
             double vel_x = proporsional(x_kp, 0, cur_pose_1.position.x);
             double vel_y = proporsional(y_kp, 0, cur_pose_1.position.y);
-            double vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data);     
+            double vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data);    
 
-            if(vel_x > 1){vel_x = 1;}
-            if(vel_x < -1){vel_x = -1;}
-            if(vel_y > 1){vel_x = 1;}
-            if(vel_y > 1){vel_x = 1;}
-            if(vel_z > 1){vel_x = 1;}
-            if(vel_z > 1){vel_x = 1;}
+            if(vel_x>pid_limiter_xy){vel_x=pid_limiter_xy;}
+            if(vel_x<-pid_limiter_xy){vel_x=-pid_limiter_xy;}
+            if(vel_y>pid_limiter_xy){vel_y=pid_limiter_xy;}
+            if(vel_y<-pid_limiter_xy){vel_y=-pid_limiter_xy;}
+            if(vel_y>pid_limiter_z){vel_y=pid_limiter_z;}
+            if(vel_y<-pid_limiter_z){vel_y=-pid_limiter_z;}
 
             vel_setpoint.twist.linear.x = vel_x;
             vel_setpoint.twist.linear.y = -vel_y;
@@ -132,7 +166,7 @@ class DroneController{
        
     void mission1_start(){
         //Set mode to GUIDED
-        mavros_msgs::SetMode set_mode;
+        
         set_mode.request.custom_mode = "GUIDED";
 
         while(current_state.mode != "GUIDED"){  
@@ -167,7 +201,8 @@ class DroneController{
         if(takeoff_client.call(takeoff_param)){
             ROS_INFO("Taking off");
         }
-
+         
+        /*
         //wait until altitude is reached
         while(1){
             std::cout << "altitude" << cur_rel_altitude.data << std::endl; 
@@ -184,6 +219,7 @@ class DroneController{
             }
             ros::Duration(1).sleep();
         }  
+        */
     }
 
     // Callback functions
@@ -194,6 +230,18 @@ class DroneController{
         }
         else if (req.cmd == "CENTERING_START"){
             mission_thread = boost::thread(&DroneController::centering_start, this);
+        }
+        else if (req.cmd == "MOVE_LEFT"){
+            mission_thread = boost::thread(&DroneController::move_left, this);
+        }
+        else if (req.cmd == "MOVE_RIGHT"){
+            mission_thread = boost::thread(&DroneController::move_right, this);
+        }
+        else if (req.cmd == "MOVE_BACK"){
+            mission_thread = boost::thread(&DroneController::move_back, this);
+        }
+        else if (req.cmd == "MOVE_FRONT"){
+            mission_thread = boost::thread(&DroneController::move_front, this);
         }
         
         res.success = true;

@@ -1,7 +1,8 @@
 <launch>
-	<include file="$(find drone)/launch/apm.launch">
-		<arg name="fcu_url" value="/dev/ttyUSB0[:57600]" />
+	<include file="$(find cargo_drone)/launch/apm.launch">
+		<arg name="fcu_url" value="/dev/ttyUSB0" />
 	</include>
-	<include file="$(find drone)/launch/camera.launch"></include>
-	<include file="$(find drone)/launch/aruco_tracker.launch"></include>
+	<include file="$(find cargo_drone)/launch/camera.launch"></include>
+	<include file="$(find cargo_drone)/launch/aruco_tracker.launch"></include>
+	<node name="controller" pkg="cargo_drone" type="controller" output="screen"/>
 </launch>

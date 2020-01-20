@@ -20,8 +20,8 @@
   	<!-- flip the image vertically -->
   	<arg name="flip_vertical" default="false" />
     <!-- force width and height, 0 means no forcing -->
-    <arg name="width" default="320"/>
-    <arg name="height" default="240"/>
+    <arg name="width" default="640"/>
+    <arg name="height" default="480"/>
     <!-- enable looping playback, only if video_stream_provider is a video file -->
     <arg name="loop_videofile" default="false" />
   	<!-- if show a image_view window subscribed to the generated stream -->
