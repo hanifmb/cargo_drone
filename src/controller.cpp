@@ -10,6 +10,7 @@
 #include "cargo_drone/cmd.h"
 #include <dynamic_reconfigure/server.h>
 #include <cargo_drone/drone_paramConfig.h>
+#include <mavros_msgs/PositionTarget.h>
 
 #include <boost/thread.hpp>
 #include <sstream>
@@ -24,11 +25,13 @@ class DroneController{
     ros::Subscriber relative_altitude_sub;
     ros::Subscriber pose1_sub;
     ros::Publisher vel_setpoint_pub;
+    ros::Publisher raw_setpoint_pub;
     std_msgs::Float64 cur_rel_altitude;
     geometry_msgs::Pose cur_pose_1;
     geometry_msgs::TwistStamped vel_setpoint;
     mavros_msgs::State current_state;
     mavros_msgs::SetMode set_mode;
+    mavros_msgs::PositionTarget vel_raw_data;
 
     double last_pose1_time;
     bool go_down;
@@ -52,7 +55,9 @@ class DroneController{
         relative_altitude_sub = nh->subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt", 10, &DroneController::relative_altitude_cb, this);
         pose1_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose1", 10, &DroneController::pose1_cb, this);
 
-        vel_setpoint_pub = nh->advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 1000);
+        vel_setpoint_pub = nh->advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 100);
+        raw_setpoint_pub = nh->advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
+
 
         //Service
         service = nh->advertiseService("/controller/drone_cmd", &DroneController::decoder_cb, this);
@@ -62,6 +67,16 @@ class DroneController{
         takeoff_client = nh->serviceClient<mavros_msgs::CommandTOL>("/mavros/cmd/takeoff");
 
         go_down = false;
+        vel_raw_data.coordinate_frame = mavros_msgs::PositionTarget::FRAME_BODY_NED;
+        vel_raw_data.type_mask =
+                mavros_msgs::PositionTarget::IGNORE_AFX |
+                mavros_msgs::PositionTarget::IGNORE_AFY |
+                mavros_msgs::PositionTarget::IGNORE_AFZ |
+                mavros_msgs::PositionTarget::IGNORE_PX |
+                mavros_msgs::PositionTarget::IGNORE_PY |
+                mavros_msgs::PositionTarget::IGNORE_PZ |
+                mavros_msgs::PositionTarget::IGNORE_YAW |
+                mavros_msgs::PositionTarget::IGNORE_YAW_RATE;
 
         f = boost::bind(&DroneController::dynamic_reconfigure_cb, this, _1, _2);
         server.setCallback(f);
@@ -83,24 +98,32 @@ class DroneController{
     }
 
     void move_right(){
-        vel_setpoint.twist.linear.x = +1;
-        vel_setpoint.twist.linear.y = 0;
-        vel_setpoint_pub.publish(vel_setpoint);
+        vel_raw_data.velocity.x = 1;
+        vel_raw_data.velocity.y = 0;
+
+        vel_raw_data.header.stamp = ros::Time::now();
+        raw_setpoint_pub.publish(vel_raw_data);
     }
     void move_left(){
-        vel_setpoint.twist.linear.x = -1;
-        vel_setpoint.twist.linear.y = 0;
-        vel_setpoint_pub.publish(vel_setpoint);
+        vel_raw_data.velocity.x = -1;
+        vel_raw_data.velocity.y = 0;
+
+        vel_raw_data.header.stamp = ros::Time::now();
+        raw_setpoint_pub.publish(vel_raw_data);
     }
     void move_back(){
-        vel_setpoint.twist.linear.y = -1;
-        vel_setpoint.twist.linear.x = 0;
-        vel_setpoint_pub.publish(vel_setpoint);
+        vel_raw_data.velocity.x = 0;
+        vel_raw_data.velocity.y = -1;
+
+        vel_raw_data.header.stamp = ros::Time::now();
+        raw_setpoint_pub.publish(vel_raw_data);
     }
     void move_front(){
-        vel_setpoint.twist.linear.y = 1;
-        vel_setpoint.twist.linear.x = 0;
-        vel_setpoint_pub.publish(vel_setpoint);
+        vel_raw_data.velocity.x = 0;
+        vel_raw_data.velocity.y = 1;
+
+        vel_raw_data.header.stamp = ros::Time::now();
+        raw_setpoint_pub.publish(vel_raw_data);
     }
 
     double proporsional(double Kp, double setpoint, double state){
@@ -111,7 +134,6 @@ class DroneController{
 
         double current_time = ros::Time::now().toSec();
         //double duration = 5;
-        
         set_mode.request.custom_mode = "GUIDED";
         while(current_state.mode != "GUIDED"){  
             ROS_INFO("Switching to GUIDED");
@@ -121,8 +143,8 @@ class DroneController{
             }
             ros::Duration(2).sleep();
         }
-    
-        ros::Rate send_vel_rate(30);    
+
+        ros::Rate send_vel_rate(20);    
         while (current_time - last_pose1_time < ar_timeout){
             ROS_INFO("last pose: %f", current_time - last_pose1_time);
 
@@ -137,26 +159,31 @@ class DroneController{
             if(vel_y>pid_limiter_z){vel_y=pid_limiter_z;}
             if(vel_y<-pid_limiter_z){vel_y=-pid_limiter_z;}
 
-            vel_setpoint.twist.linear.x = vel_x;
-            vel_setpoint.twist.linear.y = -vel_y;
+        
+            vel_raw_data.velocity.x = vel_x;
+            vel_raw_data.velocity.y = -vel_y;
 
-            if(vel_setpoint.twist.linear.x < diameter_thresh &&
-            vel_setpoint.twist.linear.x > -diameter_thresh && 
-            vel_setpoint.twist.linear.y < diameter_thresh && 
-            vel_setpoint.twist.linear.y > -diameter_thresh &&
+            if(cur_pose_1.position.x < diameter_thresh &&
+            cur_pose_1.position.x > -diameter_thresh && 
+            cur_pose_1.position.y < diameter_thresh && 
+            cur_pose_1.position.y > -diameter_thresh &&
             !go_down)
             {
                 go_down = true;
             }
 
             if(go_down){
-                vel_setpoint.twist.linear.z = -vel_z;
+                vel_raw_data.velocity.z = -vel_z;
             }
             else{
-                vel_setpoint.twist.linear.z = 0.0;
+                vel_raw_data.velocity.z = 0.0;
             }
-
-            vel_setpoint_pub.publish(vel_setpoint);
+            
+            ROS_WARN("vel_x: %f", vel_x);
+            ROS_WARN("vel_y: %f", -vel_y);
+            
+            vel_raw_data.header.stamp = ros::Time::now();
+            raw_setpoint_pub.publish(vel_raw_data);
 
             current_time = ros::Time::now().toSec();
             send_vel_rate.sleep();
@@ -225,6 +252,7 @@ class DroneController{
     // Callback functions
     bool decoder_cb(cargo_drone::cmd::Request  &req,
         cargo_drone::cmd::Response &res){
+
         if (req.cmd == "MISSION1_START"){
             mission_thread = boost::thread(&DroneController::mission1_start, this);
         }
