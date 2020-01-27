@@ -11,12 +11,15 @@
 #include <dynamic_reconfigure/server.h>
 #include <cargo_drone/drone_paramConfig.h>
 #include <mavros_msgs/PositionTarget.h>
-
+#include <mavros_msgs/WaypointReached.h>
+#include <mavros_msgs/WaypointList.h>
+#include <mavros_msgs/StreamRate.h>
 #include <boost/thread.hpp>
 #include <sstream>
 
 class DroneController{
     private:
+    ros::ServiceClient rate_client;
     ros::ServiceClient arming_client;
     ros::ServiceClient set_mode_client;
     ros::ServiceClient takeoff_client;
@@ -24,6 +27,7 @@ class DroneController{
     ros::Subscriber state_sub;
     ros::Subscriber relative_altitude_sub;
     ros::Subscriber pose1_sub;
+    ros::Subscriber mission_reached_sub;
     ros::Publisher vel_setpoint_pub;
     ros::Publisher raw_setpoint_pub;
     std_msgs::Float64 cur_rel_altitude;
@@ -32,9 +36,14 @@ class DroneController{
     mavros_msgs::State current_state;
     mavros_msgs::SetMode set_mode;
     mavros_msgs::PositionTarget vel_raw_data;
+    mavros_msgs::StreamRate rate_data;
 
     double last_pose1_time;
+    double vel_z;
     bool go_down;
+    int mission_reached_checker;
+    int mission_reached;
+    int number_of_wp;
     
     boost::thread mission_thread;
 
@@ -42,31 +51,44 @@ class DroneController{
     double ar_timeout, diameter_thresh, lower_target_alt, 
             upper_target_alt, takeoff_alt, pid_limiter_xy,
             pid_limiter_z;
-              //Setup dynamic reconfigure
-
+              
+    //Setup dynamic reconfigure
     dynamic_reconfigure::Server<cargo_drone::drone_paramConfig> server;
     dynamic_reconfigure::Server<cargo_drone::drone_paramConfig>::CallbackType f;
 
     public:
     DroneController(ros::NodeHandle* nh)
-    {
-        //Subscriber
+    {   
+        //immediately set rate to enable data retrieving from mavros topics (for APM)
+        rate_client = nh->serviceClient<mavros_msgs::StreamRate>("/mavros/set_steram_rate");
+        rate_data.request.stream_id = 0;
+        rate_data.request.message_rate = 10;
+        rate_data.request.on_off = true;
+
+        rate_client.call(rate_data);
+
+        //Subscribers
         state_sub = nh->subscribe<mavros_msgs::State>("/mavros/state", 10, &DroneController::state_cb, this);
         relative_altitude_sub = nh->subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt", 10, &DroneController::relative_altitude_cb, this);
         pose1_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose1", 10, &DroneController::pose1_cb, this);
+        mission_reached_sub = nh->subscribe<mavros_msgs::WaypointReached>("/mavros/mission/reached", 10, &DroneController::mission_reached_cb, this);
 
         vel_setpoint_pub = nh->advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 100);
         raw_setpoint_pub = nh->advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
 
-
-        //Service
+        //Services
         service = nh->advertiseService("/controller/drone_cmd", &DroneController::decoder_cb, this);
 
         arming_client = nh->serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
         set_mode_client = nh->serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");
         takeoff_client = nh->serviceClient<mavros_msgs::CommandTOL>("/mavros/cmd/takeoff");
 
+        //non-nodehandle-correlated variables
         go_down = false;
+        last_pose1_time = 0;
+        mission_reached = 0;
+        mission_reached_checker = 1;
+
         vel_raw_data.coordinate_frame = mavros_msgs::PositionTarget::FRAME_BODY_NED;
         vel_raw_data.type_mask =
                 mavros_msgs::PositionTarget::IGNORE_AFX |
@@ -80,8 +102,6 @@ class DroneController{
 
         f = boost::bind(&DroneController::dynamic_reconfigure_cb, this, _1, _2);
         server.setCallback(f);
-
-
     }
 
     void dynamic_reconfigure_cb(cargo_drone::drone_paramConfig &config, uint32_t level) {
@@ -95,6 +115,7 @@ class DroneController{
         takeoff_alt = config.takeoff_alt;
         pid_limiter_xy = config.pid_limiter_xy;
         pid_limiter_z = config.pid_limiter_z;
+        number_of_wp = config.number_of_wp;
     }
 
     void move_right(){
@@ -130,7 +151,7 @@ class DroneController{
         return Kp*(state-setpoint);
     }
 
-    float centering_start(){
+    void centering_start(){
 
         double current_time = ros::Time::now().toSec();
         //double duration = 5;
@@ -144,56 +165,90 @@ class DroneController{
             ros::Duration(2).sleep();
         }
 
-        ros::Rate send_vel_rate(20);    
-        while (current_time - last_pose1_time < ar_timeout){
-            ROS_INFO("last pose: %f", current_time - last_pose1_time);
+        ros::Rate send_vel_rate(20);   
+        while(true){
 
-            double vel_x = proporsional(x_kp, 0, cur_pose_1.position.x);
-            double vel_y = proporsional(y_kp, 0, cur_pose_1.position.y);
-            double vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data);    
+            vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data); 
 
-            if(vel_x>pid_limiter_xy){vel_x=pid_limiter_xy;}
-            if(vel_x<-pid_limiter_xy){vel_x=-pid_limiter_xy;}
-            if(vel_y>pid_limiter_xy){vel_y=pid_limiter_xy;}
-            if(vel_y<-pid_limiter_xy){vel_y=-pid_limiter_xy;}
-            if(vel_y>pid_limiter_z){vel_y=pid_limiter_z;}
-            if(vel_y<-pid_limiter_z){vel_y=-pid_limiter_z;}
+            if(vel_z>pid_limiter_z){vel_z=pid_limiter_z;}
+            if(vel_z<-pid_limiter_z){vel_z=-pid_limiter_z;}
 
-        
-            vel_raw_data.velocity.x = vel_x;
-            vel_raw_data.velocity.y = -vel_y;
+            vel_raw_data.velocity.z = -vel_z;
+            
+            if (current_time - last_pose1_time < ar_timeout && last_pose1_time != 0){
+                double vel_x = proporsional(x_kp, 0, cur_pose_1.position.x);
+                double vel_y = proporsional(y_kp, 0, cur_pose_1.position.y);
+                
+                if(vel_x>pid_limiter_xy){vel_x=pid_limiter_xy;}
+                if(vel_x<-pid_limiter_xy){vel_x=-pid_limiter_xy;}
+                if(vel_y>pid_limiter_xy){vel_y=pid_limiter_xy;}
+                if(vel_y<-pid_limiter_xy){vel_y=-pid_limiter_xy;}
 
-            if(cur_pose_1.position.x < diameter_thresh &&
-            cur_pose_1.position.x > -diameter_thresh && 
-            cur_pose_1.position.y < diameter_thresh && 
-            cur_pose_1.position.y > -diameter_thresh &&
-            !go_down)
-            {
-                go_down = true;
-            }
-
-            if(go_down){
-                vel_raw_data.velocity.z = -vel_z;
+                vel_raw_data.velocity.x = vel_x;
+                vel_raw_data.velocity.y = -vel_y;
             }
             else{
-                vel_raw_data.velocity.z = 0.0;
+                vel_raw_data.velocity.x = 0;
+                vel_raw_data.velocity.y = 0;
             }
+
+            raw_setpoint_pub.publish(vel_raw_data);
+
+            if(cur_rel_altitude.data<=lower_target_alt+0.2){
+                break;
+            }
+
+            send_vel_rate.sleep();
+        } 
+
+        go_back_up();
+    }
+
+    void go_back_up(){
+        
+        ros::Rate send_vel_rate(20);
+        while(cur_rel_altitude.data < upper_target_alt*0.95){
+            vel_z = proporsional(z_kp, upper_target_alt, cur_rel_altitude.data); 
             
-            ROS_WARN("vel_x: %f", vel_x);
-            ROS_WARN("vel_y: %f", -vel_y);
-            
+            if(vel_z>pid_limiter_z){vel_z=pid_limiter_z;}
+            if(vel_z<-pid_limiter_z){vel_z=-pid_limiter_z;}
+
+            vel_raw_data.velocity.z = -vel_z;
+
             vel_raw_data.header.stamp = ros::Time::now();
             raw_setpoint_pub.publish(vel_raw_data);
 
-            current_time = ros::Time::now().toSec();
             send_vel_rate.sleep();
-        } 
-    }
+        }
+        
+        //switch mode to RTL when final WP is reached
+        if(mission_reached = number_of_wp){
+            set_mode.request.custom_mode = "RTL";
+            while(current_state.mode != "RTL"){
+                if(set_mode_client.call(set_mode) && set_mode.response.mode_sent){
+                    ROS_INFO("RTL enabled");
+                }
+            ros::Duration(1).sleep();
+            }
+        }else{
+            //Switch to AUTO and wait until next wp is reached before going down
+            set_mode.request.custom_mode = "AUTO";
+            while(current_state.mode != "AUTO"){
+                if(set_mode_client.call(set_mode) && set_mode.response.mode_sent){
+                    ROS_INFO("AUTO enabled");
+                }
+            ros::Duration(1).sleep();
+        }
 
+        wait_wp_reached(); 
+        }
+
+        
+    }
        
     void mission1_start(){
+
         //Set mode to GUIDED
-        
         set_mode.request.custom_mode = "GUIDED";
 
         while(current_state.mode != "GUIDED"){  
@@ -209,7 +264,6 @@ class DroneController{
         mavros_msgs::CommandBool arm_cmd;
         arm_cmd.request.value = true;
 
-        
         while(!current_state.armed){
                 if(arming_client.call(arm_cmd) && arm_cmd.response.success){
                     ROS_INFO("Vehicle armed");
@@ -219,7 +273,7 @@ class DroneController{
             }
         
         //Add duration between arming and take off
-        ros::Duration(2).sleep();
+        ros::Duration(6).sleep();
 
         //Take off
         mavros_msgs::CommandTOL takeoff_param;
@@ -229,9 +283,9 @@ class DroneController{
             ROS_INFO("Taking off");
         }
          
-        /*
+        
         //wait until altitude is reached
-        while(1){
+        while(cur_rel_altitude.data < takeoff_alt*0.95){
             std::cout << "altitude" << cur_rel_altitude.data << std::endl; 
             ros::Duration(0.5).sleep();
         }
@@ -245,8 +299,20 @@ class DroneController{
                 ROS_INFO("AUTO enabled");
             }
             ros::Duration(1).sleep();
+        }
+
+        wait_wp_reached();    
+        ROS_INFO("MISSION 1 END");
+    }
+
+    void wait_wp_reached(){
+        while(true){
+            if(mission_reached_checker == mission_reached){    
+                mission_reached_checker++;
+                centering_start();
+            }
+            ros::Duration(0.5).sleep();
         }  
-        */
     }
 
     // Callback functions
@@ -282,7 +348,6 @@ class DroneController{
 
     void relative_altitude_cb(const std_msgs::Float64::ConstPtr& msg){
         cur_rel_altitude = *msg;
-        //std::cout << "altitude" << cur_rel_altitude.data << std::endl; 
     }
 
     void pose1_cb(const geometry_msgs::Pose::ConstPtr& msg){
@@ -290,24 +355,20 @@ class DroneController{
         cur_pose_1 = *msg;
     }
 
+    void mission_reached_cb(const mavros_msgs::WaypointReached::ConstPtr& msg){
+        mission_reached = msg->wp_seq;
+    }
 
 };
 
-
-
-
 int main(int argc, char **argv)
 {
-
   // ROS node initialization
   ros::init(argc, argv, "drone_control");
   
-
-  //boost::thread spin_thread(&spinThread);
   ros::NodeHandle nh;
   DroneController controller_node(&nh);
   
-  //Thread initialization
   ros::spin();
   return 0;
  }
