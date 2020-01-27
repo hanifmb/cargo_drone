@@ -4,4 +4,6 @@
     </include>
 	<include file="$(find cargo_drone)/launch/aruco_tracker_sim.launch"></include>
     <node name="controller" pkg="cargo_drone" type="controller" output="screen"/>
+    <node name="web_video_server" pkg="web_video_server" type="web_video_server" output="screen"/> 
+    <!-- <node name="video_recorder" pkg="simple_video_recorder" type="simple_video_recorder" output="screen"/> --> 
 </launch>
