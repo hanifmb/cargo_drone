@@ -17,6 +17,7 @@
 #include <boost/thread.hpp>
 #include <sstream>
 
+
 class DroneController{
     private:
     ros::ServiceClient rate_client;
@@ -63,7 +64,7 @@ class DroneController{
         rate_client = nh->serviceClient<mavros_msgs::StreamRate>("/mavros/set_steram_rate");
         rate_data.request.stream_id = 0;
         rate_data.request.message_rate = 10;
-        rate_data.request.on_off = true;
+        rate_data.request.on_off = 1;
 
         rate_client.call(rate_data);
 
