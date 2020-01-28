@@ -66,7 +66,15 @@ class DroneController{
         rate_data.request.message_rate = 10;
         rate_data.request.on_off = 1;
 
-        rate_client.call(rate_data);
+        ROS_INFO("Waiting for set_stream_rate service...");
+
+        if(ros::service::waitForService("/mavros/set_steram_rate", 10)){
+            rate_client.call(rate_data);
+            ROS_INFO("New stream rate is set");
+        }else{
+            ROS_INFO("set_stream_rate time out");
+        }
+        
 
         //Subscribers
         state_sub = nh->subscribe<mavros_msgs::State>("/mavros/state", 10, &DroneController::state_cb, this);
@@ -166,7 +174,7 @@ class DroneController{
             ros::Duration(2).sleep();
         }
 
-        ros::Rate send_vel_rate(20);   
+        ros::Rate send_vel_rate(1);   
         while(true){
 
             vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data); 
@@ -207,7 +215,7 @@ class DroneController{
 
     void go_back_up(){
         
-        ros::Rate send_vel_rate(20);
+        ros::Rate send_vel_rate(1);
         while(cur_rel_altitude.data < upper_target_alt*0.95){
             vel_z = proporsional(z_kp, upper_target_alt, cur_rel_altitude.data); 
             
