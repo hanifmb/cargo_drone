@@ -14,8 +14,10 @@
 #include <mavros_msgs/WaypointReached.h>
 #include <mavros_msgs/WaypointList.h>
 #include <mavros_msgs/StreamRate.h>
+#include <mavros_msgs/OverrideRCIn.h>
 #include <boost/thread.hpp>
 #include <sstream>
+
 
 
 class DroneController{
@@ -31,6 +33,7 @@ class DroneController{
     ros::Subscriber mission_reached_sub;
     ros::Publisher vel_setpoint_pub;
     ros::Publisher raw_setpoint_pub;
+    ros::Publisher rc_override_pub;
     std_msgs::Float64 cur_rel_altitude;
     geometry_msgs::Pose cur_pose_1;
     geometry_msgs::TwistStamped vel_setpoint;
@@ -38,7 +41,8 @@ class DroneController{
     mavros_msgs::SetMode set_mode;
     mavros_msgs::PositionTarget vel_raw_data;
     mavros_msgs::StreamRate rate_data;
-
+    mavros_msgs::OverrideRCIn channel_data;
+    
     double last_pose1_time;
     double vel_z;
     bool go_down;
@@ -82,12 +86,15 @@ class DroneController{
         pose1_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose1", 10, &DroneController::pose1_cb, this);
         mission_reached_sub = nh->subscribe<mavros_msgs::WaypointReached>("/mavros/mission/reached", 10, &DroneController::mission_reached_cb, this);
 
+        //Publishers
         vel_setpoint_pub = nh->advertise<geometry_msgs::TwistStamped>("/mavros/setpoint_velocity/cmd_vel", 100);
         raw_setpoint_pub = nh->advertise<mavros_msgs::PositionTarget>("/mavros/setpoint_raw/local", 10);
+        rc_override_pub = nh->advertise<mavros_msgs::OverrideRCIn>("/mavros/rc/override", 10);
 
         //Services
         service = nh->advertiseService("/controller/drone_cmd", &DroneController::decoder_cb, this);
-
+        
+        //Clients
         arming_client = nh->serviceClient<mavros_msgs::CommandBool>("/mavros/cmd/arming");
         set_mode_client = nh->serviceClient<mavros_msgs::SetMode>("/mavros/set_mode");
         takeoff_client = nh->serviceClient<mavros_msgs::CommandTOL>("/mavros/cmd/takeoff");
@@ -174,7 +181,7 @@ class DroneController{
             ros::Duration(2).sleep();
         }
 
-        ros::Rate send_vel_rate(1);   
+        ros::Rate send_vel_rate(3);   
         while(true){
 
             vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data); 
@@ -210,12 +217,19 @@ class DroneController{
             send_vel_rate.sleep();
         } 
 
+        if(mission_reached == 1){
+            rc_override(7, 1800);
+        }else if(mission_reached == 2){
+            rc_override(8, 1800);
+        }
+        
+        ros::Duration(0.2).sleep();
         go_back_up();
     }
 
     void go_back_up(){
         
-        ros::Rate send_vel_rate(1);
+        ros::Rate send_vel_rate(3);
         while(cur_rel_altitude.data < upper_target_alt*0.95){
             vel_z = proporsional(z_kp, upper_target_alt, cur_rel_altitude.data); 
             
@@ -324,6 +338,13 @@ class DroneController{
         }  
     }
 
+    void rc_override(int channel, int pwm){
+        boost::array<int,8> data = {0, 0, 0, 0, 0, 0, 0, 0};  
+        data[channel-1] = pwm;
+        channel_data.channels = data;
+        rc_override_pub.publish(channel_data);
+    }
+
     // Callback functions
     bool decoder_cb(cargo_drone::cmd::Request  &req,
         cargo_drone::cmd::Response &res){
@@ -345,6 +366,9 @@ class DroneController{
         }
         else if (req.cmd == "MOVE_FRONT"){
             mission_thread = boost::thread(&DroneController::move_front, this);
+        }
+        else if (req.cmd == "OVERRIDE"){
+            boost::thread servo_thread(boost::bind(&DroneController::rc_override, this, req.data1, req.data2));
         }
         
         res.success = true;
