@@ -17,6 +17,7 @@
 #include <mavros_msgs/OverrideRCIn.h>
 #include <boost/thread.hpp>
 #include <sstream>
+#include <ros/console.h>
 
 
 
@@ -36,6 +37,7 @@ class DroneController{
     ros::Publisher raw_setpoint_pub;
     ros::Publisher rc_override_pub;
     std_msgs::Float64 cur_rel_altitude;
+    geometry_msgs::Pose cur_pose;
     geometry_msgs::Pose cur_pose_1;
     geometry_msgs::Pose cur_pose_2;
     geometry_msgs::TwistStamped vel_setpoint;
@@ -45,7 +47,7 @@ class DroneController{
     mavros_msgs::StreamRate rate_data;
     mavros_msgs::OverrideRCIn channel_data;
     
-    double last_pose1_time, last_pose2_time;
+    double last_pose1_time, last_pose2_time, last_pose_time;
     double vel_z;
     bool go_down;
     int mission_reached_checker;
@@ -184,7 +186,7 @@ class DroneController{
             ros::Duration(2).sleep();
         }
 
-        ros::Rate send_vel_rate(3);   
+        ros::Rate send_vel_rate(10);   
         while(true){
             current_time = ros::Time::now().toSec();
             vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data); 
@@ -193,10 +195,18 @@ class DroneController{
             if(vel_z<-pid_limiter_z){vel_z=-pid_limiter_z;}
 
             vel_raw_data.velocity.z = -vel_z;
+
+            if(mission_reached == 1){
+                last_pose_time = last_pose1_time;
+                cur_pose = cur_pose_1;
+            }else if(mission_reached == 2){
+                last_pose_time = last_pose2_time;
+                cur_pose = cur_pose_2;
+            }
             
-            if (current_time - last_pose1_time < ar_timeout && last_pose1_time != 0){
-                double vel_x = proporsional(x_kp, 0, cur_pose_1.position.x);
-                double vel_y = proporsional(y_kp, 0, cur_pose_1.position.y);
+            if (current_time - last_pose_time < ar_timeout && last_pose_time != 0){
+                double vel_x = proporsional(x_kp, 0, cur_pose.position.x);
+                double vel_y = proporsional(y_kp, 0, cur_pose.position.y);
                 
                 if(vel_x>pid_limiter_xy){vel_x=pid_limiter_xy;}
                 if(vel_x<-pid_limiter_xy){vel_x=-pid_limiter_xy;}
@@ -232,7 +242,7 @@ class DroneController{
 
     void go_back_up(){
         
-        ros::Rate send_vel_rate(3);
+        ros::Rate send_vel_rate(10);
         while(cur_rel_altitude.data < upper_target_alt*0.95){
             vel_z = proporsional(z_kp, upper_target_alt, cur_rel_altitude.data); 
             
@@ -248,7 +258,7 @@ class DroneController{
         }
         
         //switch mode to RTL when final WP is reached
-        if(mission_reached = number_of_wp){
+        if(mission_reached == number_of_wp){
             set_mode.request.custom_mode = "RTL";
             while(current_state.mode != "RTL"){
                 if(set_mode_client.call(set_mode) && set_mode.response.mode_sent){
@@ -299,7 +309,7 @@ class DroneController{
             }
         
         //Add duration between arming and take off
-        ros::Duration(6).sleep();
+        ros::Duration(5).sleep();
 
         //Take off
         mavros_msgs::CommandTOL takeoff_param;
@@ -380,6 +390,7 @@ class DroneController{
 
     void state_cb(const mavros_msgs::State::ConstPtr& msg){
         current_state = *msg;
+        ROS_INFO("mission_reached: %i mission_reached_checker: %i number_of_wp: %i alt: %f", mission_reached, mission_reached_checker, number_of_wp, cur_rel_altitude.data);
     }
 
     void relative_altitude_cb(const std_msgs::Float64::ConstPtr& msg){
