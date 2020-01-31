@@ -30,12 +30,14 @@ class DroneController{
     ros::Subscriber state_sub;
     ros::Subscriber relative_altitude_sub;
     ros::Subscriber pose1_sub;
+    ros::Subscriber pose2_sub;
     ros::Subscriber mission_reached_sub;
     ros::Publisher vel_setpoint_pub;
     ros::Publisher raw_setpoint_pub;
     ros::Publisher rc_override_pub;
     std_msgs::Float64 cur_rel_altitude;
     geometry_msgs::Pose cur_pose_1;
+    geometry_msgs::Pose cur_pose_2;
     geometry_msgs::TwistStamped vel_setpoint;
     mavros_msgs::State current_state;
     mavros_msgs::SetMode set_mode;
@@ -43,7 +45,7 @@ class DroneController{
     mavros_msgs::StreamRate rate_data;
     mavros_msgs::OverrideRCIn channel_data;
     
-    double last_pose1_time;
+    double last_pose1_time, last_pose2_time;
     double vel_z;
     bool go_down;
     int mission_reached_checker;
@@ -84,6 +86,7 @@ class DroneController{
         state_sub = nh->subscribe<mavros_msgs::State>("/mavros/state", 10, &DroneController::state_cb, this);
         relative_altitude_sub = nh->subscribe<std_msgs::Float64>("/mavros/global_position/rel_alt", 10, &DroneController::relative_altitude_cb, this);
         pose1_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose1", 10, &DroneController::pose1_cb, this);
+        pose2_sub = nh->subscribe<geometry_msgs::Pose>("/aruco_simple/pose2", 10, &DroneController::pose2_cb, this);
         mission_reached_sub = nh->subscribe<mavros_msgs::WaypointReached>("/mavros/mission/reached", 10, &DroneController::mission_reached_cb, this);
 
         //Publishers
@@ -183,7 +186,7 @@ class DroneController{
 
         ros::Rate send_vel_rate(3);   
         while(true){
-
+            current_time = ros::Time::now().toSec();
             vel_z = proporsional(z_kp, lower_target_alt, cur_rel_altitude.data); 
 
             if(vel_z>pid_limiter_z){vel_z=pid_limiter_z;}
@@ -223,7 +226,7 @@ class DroneController{
             rc_override(8, 1800);
         }
         
-        ros::Duration(0.2).sleep();
+        ros::Duration(2).sleep();
         go_back_up();
     }
 
@@ -386,6 +389,11 @@ class DroneController{
     void pose1_cb(const geometry_msgs::Pose::ConstPtr& msg){
         last_pose1_time = ros::Time::now().toSec();
         cur_pose_1 = *msg;
+    }
+
+    void pose2_cb(const geometry_msgs::Pose::ConstPtr& msg){
+        last_pose2_time = ros::Time::now().toSec();
+        cur_pose_2 = *msg;
     }
 
     void mission_reached_cb(const mavros_msgs::WaypointReached::ConstPtr& msg){
