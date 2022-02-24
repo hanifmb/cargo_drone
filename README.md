@@ -1,22 +1,28 @@
 # Logistics-Delivery-Drone
+
 Hexacopter program developed for LAPAN drone delivery project
 
 ## Prerequisites
+
 1. ROS (Robot Operating System) Kinetic kame
 2. OpenCV library
 3. C++ 11
+
 ### ROS package
-4. MavROS - used for mavlink communication with Pixhawk
-5. video_stream_opencv 
-6. aruco_ros
+
+1. MavROS - used for mavlink communication with Pixhawk
+2. video_stream_opencv
+3. aruco_ros
 
 ### Optional (Needed for simulation)
+
 1. Gazebo 7 or Gazebo 9
 2. Ardupilot SITL (Software in the loop)
 3. Mission planner - running on ubuntu 16.04 through wine
 
 ## Running the simulation
-```bash 
+
+```
 roscore
 rosrun gazebo_ros gazebo --verbose worlds/iris_arducopter_runway.world
 sim_vehicle.py -f gazebo-iris --console
@@ -24,13 +30,15 @@ roslaunch drone mission1_sim.launch
 ```
 
 ## Connecting to real vehicle
-```bash 
+
+```
 roscore
 roslaunch drone mission1.launch
 ```
 
 ## Notes on Gazebo simulation
-1. Consider using [Swiftgust's version](https://github.com/SwiftGust/ardupilot_gazebo) of ardupilot-gazebo simulation for ubuntu 16.04 
+
+1. Consider using [Swiftgust's version](https://github.com/SwiftGust/ardupilot_gazebo) of ardupilot-gazebo simulation for ubuntu 16.04
 2. Confirm that model and world paths are exported to make sure Gazebo is able to find the corresponding files.
 ```
 source /usr/share/gazebo/setup.sh
@@ -40,15 +48,18 @@ export GAZEBO_MODEL_PATH=~/ardupilot_gazebo/models_gazebo:${GAZEBO_MODEL_PATH}
 export GAZEBO_RESOURCE_PATH=~/ardupilot_gazebo/worlds:${GAZEBO_RESOURCE_PATH}
 export GAZEBO_PLUGIN_PATH=~/ardupilot_gazebo/build:${GAZEBO_PLUGIN_PATH}
 ```
-3. [gazebo-ros camera plugin](https://github.com/ros-simulation/gazebo_ros_pkgs/blob/jade-devel/gazebo_plugins/src/gazebo_ros_camera.cpp) is needed to to be compiled and added to gimbal's .udf file to publish simulation camera to rostopic. Clone and catkin build it.
 
-the gimbal .udf file is most likely at
+1. [gazebo-ros camera plugin](https://github.com/ros-simulation/gazebo_ros_pkgs/blob/jade-devel/gazebo_plugins/src/gazebo_ros_camera.cpp) is needed to be compiled and added to gimbal's .udf file to publish simulation camera to rostopic. Clone and catkin build it.
+
+the gimbal .udf file can be found at:
+
 ```
 ~/ardupilot_gazebo/models_gazebo/gimbal_small_2d
 ```
+
 note that the ardupilot_gazebo is Swiftgust's
 
-Plugin has to be added inside ```<sensor> </sensor>``` [example](http://gazebosim.org/tutorials?tut=ros_gzplugins):
+Plugin has to be added inside `<sensor> </sensor>` [example](http://gazebosim.org/tutorials?tut=ros_gzplugins):
 
 ```
   <!-- camera -->
@@ -92,14 +103,17 @@ Plugin has to be added inside ```<sensor> </sensor>``` [example](http://gazebosi
     </sensor>
   </gazebo>
 ```
-4. Gazebo must be run with 
-```rosrun gazebo_ros gazebo``` 
-instead of 
-```gazebo```
-otherwise this error would appear
+
+1. Gazebo must be run with:
+`rosrun gazebo_ros gazebo`
+instead of
+`gazebo`
+otherwise, this error would appear:
+
 ```
 A ROS node for Gazebo has not been initialized, unable to load plugin.
 Load the Gazebo system plugin 'libgazebo_ros_api_plugin.so' in the gazebo_ros package
 ```
-5. CMake needs to be updated to the latest version to prevent error when compiling ardupilot gazebo plugin.
-6. Please be advised to use only one version of gazebo. In case that two versions have been previously installed, make sure to uninstall one of the version completely as it might causing misplacement of installation files. 
+
+1. CMake needs to be updated to the latest version to prevent errors when compiling ardupilot gazebo plugin.
+2. Please be advised to use only one version of gazebo. In case two versions have been previously installed, make sure to uninstall one of the versions completely as it might cause misplacement of installation files.
