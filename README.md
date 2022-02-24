@@ -8,11 +8,11 @@ Hexacopter program developed for LAPAN drone delivery project
 2. OpenCV library
 3. C++ 11
 
-### ROS package
+### ROS packages
 
-1. MavROS - used for mavlink communication with Pixhawk
-2. video_stream_opencv
-3. aruco_ros
+4. MavROS - used for mavlink communication with Pixhawk
+5. video_stream_opencv
+6. aruco_ros
 
 ### Optional (Needed for simulation)
 
@@ -49,7 +49,7 @@ export GAZEBO_RESOURCE_PATH=~/ardupilot_gazebo/worlds:${GAZEBO_RESOURCE_PATH}
 export GAZEBO_PLUGIN_PATH=~/ardupilot_gazebo/build:${GAZEBO_PLUGIN_PATH}
 ```
 
-1. [gazebo-ros camera plugin](https://github.com/ros-simulation/gazebo_ros_pkgs/blob/jade-devel/gazebo_plugins/src/gazebo_ros_camera.cpp) is needed to be compiled and added to gimbal's .udf file to publish simulation camera to rostopic. Clone and catkin build it.
+3. [gazebo-ros camera plugin](https://github.com/ros-simulation/gazebo_ros_pkgs/blob/jade-devel/gazebo_plugins/src/gazebo_ros_camera.cpp) is needed to be compiled and added to gimbal's .udf file to publish simulation camera to rostopic. Clone and catkin build it.
 
 the gimbal .udf file can be found at:
 
@@ -104,7 +104,7 @@ Plugin has to be added inside `<sensor> </sensor>` [example](http://gazebosim.or
   </gazebo>
 ```
 
-1. Gazebo must be run with:
+4. Gazebo must be run with:
 `rosrun gazebo_ros gazebo`
 instead of
 `gazebo`
@@ -115,5 +115,5 @@ A ROS node for Gazebo has not been initialized, unable to load plugin.
 Load the Gazebo system plugin 'libgazebo_ros_api_plugin.so' in the gazebo_ros package
 ```
 
-1. CMake needs to be updated to the latest version to prevent errors when compiling ardupilot gazebo plugin.
-2. Please be advised to use only one version of gazebo. In case two versions have been previously installed, make sure to uninstall one of the versions completely as it might cause misplacement of installation files.
+5. CMake needs to be updated to the latest version to prevent errors when compiling ardupilot gazebo plugin.
+6. Please be advised to use only one version of gazebo. In case two versions have been previously installed, make sure to uninstall one of the versions completely as it might cause misplacement of installation files.
